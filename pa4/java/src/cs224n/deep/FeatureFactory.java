@@ -38,10 +38,24 @@ public class FeatureFactory {
     // TODO: you'd want to handle sentence boundaries
     List<Datum> data = new ArrayList<Datum>();
     BufferedReader in = new BufferedReader(new FileReader(filename));
+    Boolean isFirstPass = true;
     for (String line = in.readLine(); line != null; line = in.readLine()) {
-      if (line.trim().length() == 0) {
+
+      if (isFirstPass) {
+        isFirstPass = false;
+        Datum start = new Datum("<s>", "UNK"); // UNK?
+        data.add(start);
         continue;
       }
+
+      if (line.trim().length() == 0) {
+        Datum end = new Datum("</s>", "UNK"); // UNK?
+        Datum start = new Datum("<s>", "UNK"); // UNK?
+        data.add(end);
+        data.add(start);
+        continue;
+      }
+
       String[] bits = line.split("\\s+");
       String word = bits[0];
       String label = bits[1];
@@ -56,7 +70,7 @@ public class FeatureFactory {
 
   // Look up table matrix with all word vectors as defined in lecture with dimensionality n x |V|
   // Note: SimpleMatrix is 0 indexed
-  static SimpleMatrix allVecs; //access it directly in WindowModel
+  static SimpleMatrix allVecs; //access it directly in WindowModel (same as L)
 
   public static SimpleMatrix readWordVectors(String vecFilename) throws IOException {
     // already initialized, so just return
