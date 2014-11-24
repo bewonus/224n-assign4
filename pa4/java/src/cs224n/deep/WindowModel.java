@@ -13,9 +13,12 @@ public class WindowModel {
 
   protected SimpleMatrix L, W, Wout, U, b1, b2; // word-vector matrix, weight matrix, weight matrix out
 
+  private List<String> labels = new ArrayList<String>(Arrays.asList("O", "LOC", "MISC", "ORG", "PER"));
+
   public int windowSize, wordSize, hiddenSize; // C, n, H
   public double learningRate; // alpha
-  public int numLabels = 5;
+  public int numLabels = labels.size();
+  private double lambda;
 
   private static final String START = "<s>";
   private static final String END = "</s>";
@@ -61,6 +64,9 @@ public class WindowModel {
     for (int i = 0; i < U.numRows(); i++) {
       U.set(i, U.numCols() - 1, 0);
     }
+
+    // TODO: initialize lambda better...?
+    lambda = 1.0;
   }
 
   /**
@@ -172,12 +178,39 @@ public class WindowModel {
     return gTransform(U.mult(afterF));
   }
 
+
+  /**
+   * Compute the cost function using the log-likelihood
+   * @param p
+   * @param label
+   * @return
+   */
+  private double costFunction(SimpleMatrix p, String label) {
+    int y = labels.indexOf(label);
+    return Math.log(p.get(y,0));
+  }
+
+
+  /**
+   * Compute the regularization term for the cost function
+   * @param m
+   * @return
+   */
+  private double regularize(int m) {
+    // subtract because don't want to penalize bias terms
+    double R = Math.pow(W.normF(), 2) + Math.pow(U.normF(), 2) - (hiddenSize + numLabels);
+    System.out.println(R * lambda / (2 * m));
+    return R * lambda / (2 * m);
+  }
+
   /**
    * Simplest SGD training
    */
   public void train(List<Datum> _trainData) {
 
-    for (int i = 0; i < _trainData.size(); i++) {
+    int m = _trainData.size();
+    double J = 0;
+    for (int i = 0; i < m; i++) {
 
       // ignore sentence start and end tokens
       if (_trainData.get(i).word.equals(START) || _trainData.get(i).word.equals(END)) {
@@ -189,10 +222,19 @@ public class WindowModel {
       SimpleMatrix x = makeX(windowIndices);
 
       // apply feed-forward network function
-      Wout = feedForward(x);
+      SimpleMatrix p = feedForward(x);
 
-      System.out.println(Wout);
+      // increment cost function
+      J += costFunction(p, _trainData.get(i).label);
     }
+    J /= -m;
+    J += regularize(m);
+
+    System.out.println(J);
+
+
+
+
 
   }
 
