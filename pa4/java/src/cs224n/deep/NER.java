@@ -31,7 +31,7 @@ public class NER {
     baseline.test(testData);
 
     // initialize model
-    WindowModel model = new WindowModel(5, 100, 0.001);
+    WindowModel model = new WindowModel(2, 100, 0.001); //TODO: change 2 back to 5!
     model.initWeights();
 
     //TODO: Implement those two functions

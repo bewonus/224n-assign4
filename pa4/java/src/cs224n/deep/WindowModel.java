@@ -20,6 +20,8 @@ public class WindowModel {
   public int numLabels = labels.size();
   private double lambda;
 
+  private static double epsilon = 0.001;
+
   private static final String START = "<s>";
   private static final String END = "</s>";
   private static final String UNK = "UUUNKKK";
@@ -54,8 +56,8 @@ public class WindowModel {
     double eU = Math.sqrt(6.0) / Math.sqrt(numLabels + hiddenSize);
 
     // randomly initialize W and U
-    W = SimpleMatrix.random(hiddenSize, windowSize * wordSize + 1, -eW, eW, new java.util.Random());
-    U = SimpleMatrix.random(numLabels, hiddenSize + 1, -eU, eU, new java.util.Random());
+    W = SimpleMatrix.random(hiddenSize, windowSize * wordSize + 1, -eW, eW, new java.util.Random(0));
+    U = SimpleMatrix.random(numLabels, hiddenSize + 1, -eU, eU, new java.util.Random(0));
 
     // initialize bias terms to 0
     for (int i = 0; i < W.numRows(); i++) {
@@ -182,12 +184,11 @@ public class WindowModel {
   /**
    * Compute the cost function using the log-likelihood
    * @param p
-   * @param label
+   * @param k
    * @return
    */
-  private double costFunction(SimpleMatrix p, String label) {
-    int y = labels.indexOf(label);
-    return Math.log(p.get(y,0));
+  private double costFunction(SimpleMatrix p, int k) {
+    return Math.log(p.get(k));
   }
 
 
@@ -199,9 +200,51 @@ public class WindowModel {
   private double regularize(int m) {
     // subtract because don't want to penalize bias terms
     double R = Math.pow(W.normF(), 2) + Math.pow(U.normF(), 2) - (hiddenSize + numLabels);
-    System.out.println(R * lambda / (2 * m));
     return R * lambda / (2 * m);
   }
+
+
+  private SimpleMatrix delta2(SimpleMatrix p, int k) {
+    SimpleMatrix e_k = new SimpleMatrix(p.numRows(), 1);
+    e_k.set(k, 1.0);
+    return p.minus(e_k);
+  }
+
+  private SimpleMatrix delta1(SimpleMatrix h, int k) {
+    SimpleMatrix delta_1 = U.extractVector(true, k).transpose();
+    for (int i = 0; i < delta_1.numRows(); i++) {
+      delta_1.set(i, delta_1.get(i) * (1 - fTransform(h).get(i)));
+    }
+    return delta_1;
+  }
+
+  private double hiLo(List<Datum> _trainData, int m, int c, int j) {
+    SimpleMatrix U2 = U.copy();
+    U2.set(j,0, U2.get(j,0) + c * epsilon);
+    double J = 0;
+    SimpleMatrix z, h, p;
+    for (int i = 0; i < m; i++) {
+
+      // ignore sentence start and end tokens
+      if (_trainData.get(i).word.equals(START) || _trainData.get(i).word.equals(END)) {
+        continue;
+      }
+
+      // create input matrix x
+      List<Integer> windowIndices = createWindow(_trainData, i);
+      SimpleMatrix x = makeX(windowIndices);
+
+      z = W.mult(x);
+      h = fTransform(z);
+      p = gTransform(U2.mult(h));
+      int k = labels.indexOf(_trainData.get(i).label);
+
+      // increment cost function
+      J += costFunction(p, k);
+    }
+    return -J / m;
+  }
+
 
   /**
    * Simplest SGD training
@@ -209,7 +252,10 @@ public class WindowModel {
   public void train(List<Datum> _trainData) {
 
     int m = _trainData.size();
+    System.out.println(m);
     double J = 0;
+    SimpleMatrix z, h, p, delta_2, delta_1;
+    SimpleMatrix dU = new SimpleMatrix(U.numRows(), U.numCols());
     for (int i = 0; i < m; i++) {
 
       // ignore sentence start and end tokens
@@ -222,18 +268,45 @@ public class WindowModel {
       SimpleMatrix x = makeX(windowIndices);
 
       // apply feed-forward network function
-      SimpleMatrix p = feedForward(x);
+//      SimpleMatrix p = feedForward(x);
+
+      // get z, h, p, k
+      z = W.mult(x);
+      h = fTransform(z);
+      p = gTransform(U.mult(h));
+      int k = labels.indexOf(_trainData.get(i).label);
 
       // increment cost function
-      J += costFunction(p, _trainData.get(i).label);
+      J += costFunction(p, k);
+
+      // delta2
+      delta_2 = delta2(p, k);
+
+      // delta1
+      delta_1 = delta1(h, k);
+
+      // increment dU
+      dU = dU.plus(delta_2.mult(h));
+
+      // increment dW
+//      dW = dW.plus(delta_2.);
     }
     J /= -m;
-    J += regularize(m);
-
-    System.out.println(J);
+    dU = dU.scale(1.0/m);
 
 
+    // gradient checking for U and b2
+    for (int j = 0; j < labels.size(); j++) {
+      double Jhi = hiLo(_trainData, m, 1, j);
+      double Jlo = hiLo(_trainData, m, -1, j);
+      System.out.println((Jhi - Jlo) / (2 * epsilon));
+      System.out.println(dU.get(j, 0));
+    }
 
+
+
+
+//    J += regularize(m);
 
 
   }
