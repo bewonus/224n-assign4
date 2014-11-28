@@ -20,7 +20,7 @@ public class WindowModel {
   public int numLabels = labels.size();
   private double lambda;
 
-  private static double epsilon = 0.001;
+  private static double epsilon = 0.0001;
 
   private static final String START = "<s>";
   private static final String END = "</s>";
@@ -210,17 +210,17 @@ public class WindowModel {
     return p.minus(e_k);
   }
 
-  private SimpleMatrix delta1(SimpleMatrix h, int k) {
-    SimpleMatrix delta_1 = U.extractVector(true, k).transpose();
-    for (int i = 0; i < delta_1.numRows(); i++) {
-      delta_1.set(i, delta_1.get(i) * (1 - fTransform(h).get(i)));
+  private SimpleMatrix delta1(SimpleMatrix delta_2, SimpleMatrix h) {
+    SimpleMatrix diag = SimpleMatrix.identity(h.numRows() - 1);
+    for (int i = 0; i < diag.numRows(); i++) {
+      diag.set(i, i, 1 - Math.pow(h.get(i), 2)); // TODO: not sure about intercept part here!!!
     }
-    return delta_1;
+    return diag.mult(U.extractMatrix(0, U.numRows(), 0, U.numCols() - 1).transpose()).mult(delta_2);
   }
 
-  private double hiLo(List<Datum> _trainData, int m, int c, int j) {
+  private double hiLoU(List<Datum> _trainData, int m, int c, int j) {
     SimpleMatrix U2 = U.copy();
-    U2.set(j,0, U2.get(j,0) + c * epsilon);
+    U2.set(j, 0, U2.get(j, 0) + c * epsilon);
     double J = 0;
     SimpleMatrix z, h, p;
     for (int i = 0; i < m; i++) {
@@ -245,6 +245,33 @@ public class WindowModel {
     return -J / m;
   }
 
+  private double hiLoW(List<Datum> _trainData, int m, int c, int j) {
+    SimpleMatrix W2 = W.copy();
+    W2.set(j, 0, W2.get(j, 0) + c * epsilon);
+    double J = 0;
+    SimpleMatrix z, h, p;
+    for (int i = 0; i < m; i++) {
+
+      // ignore sentence start and end tokens
+      if (_trainData.get(i).word.equals(START) || _trainData.get(i).word.equals(END)) {
+        continue;
+      }
+
+      // create input matrix x
+      List<Integer> windowIndices = createWindow(_trainData, i);
+      SimpleMatrix x = makeX(windowIndices);
+
+      z = W2.mult(x);
+      h = fTransform(z);
+      p = gTransform(U.mult(h));
+      int k = labels.indexOf(_trainData.get(i).label);
+
+      // increment cost function
+      J += costFunction(p, k);
+    }
+    return -J / m;
+  }
+
 
   /**
    * Simplest SGD training
@@ -256,6 +283,7 @@ public class WindowModel {
     double J = 0;
     SimpleMatrix z, h, p, delta_2, delta_1;
     SimpleMatrix dU = new SimpleMatrix(U.numRows(), U.numCols());
+    SimpleMatrix dW = new SimpleMatrix(W.numRows(), W.numCols());
     for (int i = 0; i < m; i++) {
 
       // ignore sentence start and end tokens
@@ -283,27 +311,34 @@ public class WindowModel {
       delta_2 = delta2(p, k);
 
       // delta1
-      delta_1 = delta1(h, k);
+      delta_1 = delta1(delta_2, h);
 
       // increment dU
-      dU = dU.plus(delta_2.mult(h));
+      dU = dU.plus(delta_2.mult(h.transpose()));
 
       // increment dW
-//      dW = dW.plus(delta_2.);
+      dW = dW.plus(delta_1.mult(x.transpose()));
     }
     J /= -m;
-    dU = dU.scale(1.0/m);
+    dU = dU.scale(1.0 / m);
+    dW = dW.scale(1.0 / m);
 
 
     // gradient checking for U and b2
-    for (int j = 0; j < labels.size(); j++) {
-      double Jhi = hiLo(_trainData, m, 1, j);
-      double Jlo = hiLo(_trainData, m, -1, j);
+//    for (int j = 0; j < labels.size(); j++) {
+//      double Jhi = hiLoU(_trainData, m, 1, j);
+//      double Jlo = hiLoU(_trainData, m, -1, j);
+//      System.out.println((Jhi - Jlo) / (2 * epsilon));
+//      System.out.println(dU.get(j, 0));
+//    }
+
+    // gradient checking for W and b1
+    for (int j = 0; j < 5; j++) {
+      double Jhi = hiLoW(_trainData, m, 1, j);
+      double Jlo = hiLoW(_trainData, m, -1, j);
       System.out.println((Jhi - Jlo) / (2 * epsilon));
-      System.out.println(dU.get(j, 0));
+      System.out.println(dW.get(j, 0));
     }
-
-
 
 
 //    J += regularize(m);
