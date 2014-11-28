@@ -76,7 +76,7 @@ public class WindowModel {
    * @param indices into the matrix L
    * @return
    */
-  private SimpleMatrix makeX(List<Integer> indices) {
+  private SimpleMatrix makeX(List<Integer> indices, SimpleMatrix L) {
     SimpleMatrix x = new SimpleMatrix(wordSize * windowSize + 1, 1);
     int counter = 0;
     for (int col : indices) {
@@ -232,7 +232,7 @@ public class WindowModel {
 
       // create input matrix x
       List<Integer> windowIndices = createWindow(_trainData, i);
-      SimpleMatrix x = makeX(windowIndices);
+      SimpleMatrix x = makeX(windowIndices, L);
 
       z = W.mult(x);
       h = fTransform(z);
@@ -259,9 +259,36 @@ public class WindowModel {
 
       // create input matrix x
       List<Integer> windowIndices = createWindow(_trainData, i);
-      SimpleMatrix x = makeX(windowIndices);
+      SimpleMatrix x = makeX(windowIndices, L);
 
       z = W2.mult(x);
+      h = fTransform(z);
+      p = gTransform(U.mult(h));
+      int k = labels.indexOf(_trainData.get(i).label);
+
+      // increment cost function
+      J += costFunction(p, k);
+    }
+    return -J / m;
+  }
+
+  private double hiLoL(List<Datum> _trainData, int m, int c, int j) {
+    SimpleMatrix L2 = L.copy();
+    L2.set(j, 0, L2.get(j, 0) + c * epsilon);
+    double J = 0;
+    SimpleMatrix z, h, p;
+    for (int i = 0; i < m; i++) {
+
+      // ignore sentence start and end tokens
+      if (_trainData.get(i).word.equals(START) || _trainData.get(i).word.equals(END)) {
+        continue;
+      }
+
+      // create input matrix x
+      List<Integer> windowIndices = createWindow(_trainData, i);
+      SimpleMatrix x = makeX(windowIndices, L2);
+
+      z = W.mult(x);
       h = fTransform(z);
       p = gTransform(U.mult(h));
       int k = labels.indexOf(_trainData.get(i).label);
@@ -281,9 +308,10 @@ public class WindowModel {
     int m = _trainData.size();
     System.out.println(m);
     double J = 0;
-    SimpleMatrix z, h, p, delta_2, delta_1;
+    SimpleMatrix z, h, p, delta_2, delta_1, dx;
     SimpleMatrix dU = new SimpleMatrix(U.numRows(), U.numCols());
     SimpleMatrix dW = new SimpleMatrix(W.numRows(), W.numCols());
+    SimpleMatrix dL = new SimpleMatrix(L.numRows(), L.numCols());
     for (int i = 0; i < m; i++) {
 
       // ignore sentence start and end tokens
@@ -293,7 +321,7 @@ public class WindowModel {
 
       // create input matrix x
       List<Integer> windowIndices = createWindow(_trainData, i);
-      SimpleMatrix x = makeX(windowIndices);
+      SimpleMatrix x = makeX(windowIndices, L);
 
       // apply feed-forward network function
 //      SimpleMatrix p = feedForward(x);
@@ -318,10 +346,21 @@ public class WindowModel {
 
       // increment dW
       dW = dW.plus(delta_1.mult(x.transpose()));
+
+      // increment dL
+      dx = W.extractMatrix(0, W.numRows(), 0, W.numCols() - 1).transpose().mult(delta_1);
+      int counter = 0;
+      for (int col : windowIndices) {
+        for (int row = 0; row < wordSize; row++) {
+          dL.set(row, col, dL.get(row, col) + dx.get(counter));
+          counter++;
+        }
+      }
     }
     J /= -m;
     dU = dU.scale(1.0 / m);
     dW = dW.scale(1.0 / m);
+    dL = dL.scale(1.0 / m);
 
 
     // gradient checking for U and b2
@@ -333,11 +372,19 @@ public class WindowModel {
 //    }
 
     // gradient checking for W and b1
-    for (int j = 0; j < 5; j++) {
-      double Jhi = hiLoW(_trainData, m, 1, j);
-      double Jlo = hiLoW(_trainData, m, -1, j);
+//    for (int j = 0; j < 5; j++) {
+//      double Jhi = hiLoW(_trainData, m, 1, j);
+//      double Jlo = hiLoW(_trainData, m, -1, j);
+//      System.out.println((Jhi - Jlo) / (2 * epsilon));
+//      System.out.println(dW.get(j, 0));
+//    }
+
+    // gradient checking for L (x)
+    for (int j = 0; j < dL.numRows(); j++) {
+      double Jhi = hiLoL(_trainData, m, 1, j);
+      double Jlo = hiLoL(_trainData, m, -1, j);
       System.out.println((Jhi - Jlo) / (2 * epsilon));
-      System.out.println(dW.get(j, 0));
+      System.out.println(dL.get(j, 0));
     }
 
 
