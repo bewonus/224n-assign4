@@ -61,8 +61,8 @@ public class WindowModel {
     double eU = Math.sqrt(6.0) / Math.sqrt(numLabels + hiddenSize);
 
     // randomly initialize W and U
-    W = SimpleMatrix.random(hiddenSize, windowSize * wordSize + 1, -eW, eW, new java.util.Random(0)); // TODO: remove seed values later!
-    U = SimpleMatrix.random(numLabels, hiddenSize + 1, -eU, eU, new java.util.Random(0));
+    W = SimpleMatrix.random(hiddenSize, windowSize * wordSize + 1, -eW, eW, new java.util.Random()); // TODO: remove seed values later!
+    U = SimpleMatrix.random(numLabels, hiddenSize + 1, -eU, eU, new java.util.Random());
 
     // initialize bias terms to 0
     for (int i = 0; i < W.numRows(); i++) {
@@ -73,7 +73,8 @@ public class WindowModel {
     }
 
     // TODO: initialize lambda better...?
-    lambda = 1.0;
+    lambda = 0.001;
+//    lambda = 0;
   }
 
   /**
@@ -317,21 +318,23 @@ public class WindowModel {
   public void train(List<Datum> trainData) {
 
     int m = trainData.size();
-    m = 1000;
+    m = 10000;
     System.out.println(m);
     double J;
-    SimpleMatrix z, h, p, delta_2, delta_1, dx;
-    SimpleMatrix dU;// = new SimpleMatrix(U.numRows(), U.numCols());
-    SimpleMatrix dW;// = new SimpleMatrix(W.numRows(), W.numCols());
+    SimpleMatrix z, h, p, delta_2, delta_1, dx, dU, dW, dU2, dW2;
     SimpleMatrix dL = new SimpleMatrix(L.numRows(), L.numCols());
     SimpleMatrix dU_checking = new SimpleMatrix(U.numRows(), U.numCols());
     SimpleMatrix dW_checking = new SimpleMatrix(W.numRows(), W.numCols());
     SimpleMatrix dL_checking = new SimpleMatrix(L.numRows(), L.numCols());
 
     // Perform stochastic gradient steps
-    int numGradSteps = 100;
+    int numGradSteps = 10;
     for (int j = 0; j < numGradSteps; j++) {
       J = 0.0;
+
+      long t = System.currentTimeMillis();
+
+
       // Loop through training examples
       for (int i = 0; i < m; i++) {
 
@@ -371,9 +374,21 @@ public class WindowModel {
         dU = delta_2.mult(h.transpose());
 //      dU_checking = dU_checking.plus(dU);
 
+        dU2 = U.copy();
+        for (int row = 0; row < dU2.numRows(); row++) {
+          dU2.set(row, dU2.numCols() - 1, 0);
+        }
+        dU2.scale(lambda);
+
         // increment dW
         dW = delta_1.mult(x.transpose());
 //      dW_checking = dW_checking.plus(dW);
+
+        dW2 = W.copy();
+        for (int row = 0; row < dW2.numRows(); row++) {
+          dW2.set(row, dW2.numCols() - 1, 0);
+        }
+        dW2.scale(lambda);
 
         // increment dL (set dx first)
         dx = W.extractMatrix(0, W.numRows(), 0, W.numCols() - 1).transpose().mult(delta_1);
@@ -387,20 +402,16 @@ public class WindowModel {
           }
         }
 
-//      long t = System.currentTimeMillis();
-//      System.out.println("STARTING SGD!");
-//      System.out.println("U");
         U = U.minus(dU.scale(learningRate));
-//      System.out.println("W");
+        U = U.minus(dU2.scale(learningRate/m));
         W = W.minus(dW.scale(learningRate));
-//      System.out.println("L");
-//      L = L.minus(dL.scale(learningRate/m));
-//      System.out.println("FINISHED SGD!");
-
+        W = W.minus(dW2.scale(learningRate/m));
 //      System.out.println(System.currentTimeMillis() - t);
       }
       J /= -m;
+      J += regularize(m);
       System.out.println(J);
+      System.out.println("time: " + (System.currentTimeMillis() - t));
     }
 
 //    dU_checking = dU_checking.scale(1.0 / m);
@@ -442,18 +453,22 @@ public class WindowModel {
 
 
   public void test(List<Datum> testData, Boolean isTest) {
+    System.out.println("alpha: " + learningRate);
+    System.out.println("lambda: " + lambda);
+//    System.out.println(U);
+//    System.out.println(W);
     try {
       File file;
       if (!isTest) {
-        file = new File("windowTrain.txt");
+        file = new File("windowTrainReg.txt");
       } else {
-        file = new File("windowTest.txt");
+        file = new File("windowTestReg.txt");
       }
 
       BufferedWriter output = new BufferedWriter(new FileWriter(file));
 
       int m = testData.size();
-      m = 1000;
+      m = 10000;
       for (int i = 0; i < m; i++) {
 
         String predictLabel = "UNK"; // TODO: or "UUUNKKK"? (same for baseline?)
