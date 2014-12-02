@@ -7,12 +7,7 @@ import java.io.IOException;
 import java.lang.*;
 import java.util.*;
 
-import org.ejml.data.*;
 import org.ejml.simple.*;
-
-
-import javax.swing.plaf.basic.BasicInternalFrameTitlePane;
-import java.text.*;
 
 public class WindowModel {
 
@@ -25,14 +20,12 @@ public class WindowModel {
   public int numLabels = labels.size();
   private double lambda;
 
-  private static double epsilon = 0.0001;
-
   private static final String START = "<s>";
   private static final String END = "</s>";
   private static final String UNK = "UUUNKKK";
 
   /**
-   *
+   * Construct a window model.
    * @param _windowSize = C
    * @param _hiddenSize = H
    * @param _lr = the learning rate (alpha)
@@ -52,16 +45,13 @@ public class WindowModel {
     // word-vector matrix (i.e. the x's)
     L = new SimpleMatrix(FeatureFactory.allVecs);
 
-    // initialize with bias inside as the last column (plus 1)
-//    W = new SimpleMatrix(hiddenSize, windowSize * wordSize + 1);
-//    U = new SimpleMatrix(numLabels, hiddenSize + 1);
-
     // set params for random initialization
     double eW = Math.sqrt(6.0) / Math.sqrt(hiddenSize + windowSize * wordSize);
     double eU = Math.sqrt(6.0) / Math.sqrt(numLabels + hiddenSize);
+    // TODO: are eW and eU correct...?
 
-    // randomly initialize W and U
-    W = SimpleMatrix.random(hiddenSize, windowSize * wordSize + 1, -eW, eW, new java.util.Random()); // TODO: remove seed values later!
+    // randomly initialize W and U (with biases inside the last column (i.e. plus 1))
+    W = SimpleMatrix.random(hiddenSize, windowSize * wordSize + 1, -eW, eW, new java.util.Random());
     U = SimpleMatrix.random(numLabels, hiddenSize + 1, -eU, eU, new java.util.Random());
 
     // initialize bias terms to 0
@@ -73,8 +63,7 @@ public class WindowModel {
     }
 
     // TODO: initialize lambda better...?
-    lambda = 0.001;
-//    lambda = 0;
+    lambda = 0.0;
   }
 
   /**
@@ -143,7 +132,7 @@ public class WindowModel {
   }
 
   /**
-   * Apply the function f (hyperbolic tangent) to every element of x
+   * Apply the function f (hyperbolic tangent) to every element of x.
    * @param x
    * @return
    */
@@ -159,7 +148,7 @@ public class WindowModel {
   }
 
   /**
-   * Apply the function g (softmax) to every element of x
+   * Apply the function g (softmax) to every element of x.
    * @param x
    * @return
    */
@@ -177,18 +166,17 @@ public class WindowModel {
 
 
   /**
-   * Apply the feed-forward function to the input window x
+   * Apply the feed-forward function to the input window x.
    * @param x
    * @return
    */
   private SimpleMatrix feedForward(SimpleMatrix x) {
-    SimpleMatrix afterF = fTransform(W.mult(x));
-    return gTransform(U.mult(afterF));
+    return gTransform(U.mult(fTransform(W.mult(x))));
   }
 
 
   /**
-   * Compute the cost function using the log-likelihood
+   * Compute the cost function using the log-likelihood.
    * @param p
    * @param k
    * @return
@@ -199,7 +187,7 @@ public class WindowModel {
 
 
   /**
-   * Compute the regularization term for the cost function
+   * Compute the regularization term for the cost function.
    * @param m
    * @return
    */
@@ -210,7 +198,7 @@ public class WindowModel {
   }
 
   /**
-   * Compute delta2, which is used for computing the gradient dU.
+   * Compute delta2, which is used in the gradient computations.
    * @param p
    * @param k
    * @return
@@ -221,7 +209,12 @@ public class WindowModel {
     return p.minus(e_k);
   }
 
-
+  /**
+   * Compute delta1, which is used in the gradient computations.
+   * @param delta_2
+   * @param h
+   * @return
+   */
   private SimpleMatrix delta1(SimpleMatrix delta_2, SimpleMatrix h) {
     SimpleMatrix diag = SimpleMatrix.identity(h.numRows() - 1);
     for (int i = 0; i < diag.numRows(); i++) {
@@ -230,25 +223,21 @@ public class WindowModel {
     return diag.mult(U.extractMatrix(0, U.numRows(), 0, U.numCols() - 1).transpose()).mult(delta_2);
   }
 
-  private double hiLoU(List<Datum> trainData, int m, int c, int j) {
-    SimpleMatrix U2 = U.copy();
-    U2.set(j, 0, U2.get(j, 0) + c * epsilon);
-    double J = 0;
-    SimpleMatrix z, h, p;
-    for (int i = 0; i < m; i++) {
 
+  private double performCheck(SimpleMatrix U, SimpleMatrix W, SimpleMatrix L, List<Datum> trainData, int m) {
+    double J = 0;
+    SimpleMatrix p;
+    for (int i = 0; i < m; i++) {
       // ignore sentence start and end tokens
       if (trainData.get(i).word.equals(START) || trainData.get(i).word.equals(END)) {
         continue;
       }
-
       // create input matrix x
       List<Integer> windowIndices = createWindow(trainData, i);
       SimpleMatrix x = makeX(windowIndices, L);
 
-      z = W.mult(x);
-      h = fTransform(z);
-      p = gTransform(U2.mult(h));
+      // compute p and k
+      p = gTransform(U.mult(fTransform(W.mult(x))));
       int k = labels.indexOf(trainData.get(i).label);
 
       // increment cost function
@@ -257,58 +246,150 @@ public class WindowModel {
     return -J / m;
   }
 
-  private double hiLoW(List<Datum> trainData, int m, int c, int j) {
-    SimpleMatrix W2 = W.copy();
-    W2.set(j, 0, W2.get(j, 0) + c * epsilon);
-    double J = 0;
-    SimpleMatrix z, h, p;
-    for (int i = 0; i < m; i++) {
 
+  private void performGradCheck(List<Datum> trainData, int m) {
+    SimpleMatrix z, h, p, delta_2, delta_1, dx;
+    SimpleMatrix dU = new SimpleMatrix(U.numRows(), U.numCols());
+    SimpleMatrix dW = new SimpleMatrix(W.numRows(), W.numCols());
+    SimpleMatrix dL = new SimpleMatrix(L.numRows(), L.numCols());
+
+    // Compute Gradients
+
+    // Loop through training examples
+    for (int i = 0; i < m; i++) {
       // ignore sentence start and end tokens
       if (trainData.get(i).word.equals(START) || trainData.get(i).word.equals(END)) {
         continue;
       }
-
       // create input matrix x
       List<Integer> windowIndices = createWindow(trainData, i);
       SimpleMatrix x = makeX(windowIndices, L);
 
-      z = W2.mult(x);
+      // get z, h, p, k (apply feed-forward network function)
+      z = W.mult(x);
       h = fTransform(z);
       p = gTransform(U.mult(h));
       int k = labels.indexOf(trainData.get(i).label);
 
-      // increment cost function
-      J += costFunction(p, k);
+      // compute delta2 and delta1
+      delta_2 = delta2(p, k);
+      delta_1 = delta1(delta_2, h);
+
+      // compute dU, dW, dx
+      dU = dU.plus(delta_2.mult(h.transpose()));
+      dW = dW.plus(delta_1.mult(x.transpose()));
+      dx = W.extractMatrix(0, W.numRows(), 0, W.numCols() - 1).transpose().mult(delta_1);
+
+      int counter = 0;
+      for (int col : windowIndices) {
+        for (int row = 0; row < wordSize; row++) {
+          dL.set(row, col, dL.get(row, col) + dx.get(counter));
+          counter++;
+        }
+      }
     }
-    return -J / m;
+    dU = dU.scale(1.0 / m);
+    dW = dW.scale(1.0 / m);
+    dL = dL.scale(1.0 / m);
+
+    // Compute J high and J low, and compare to relevant gradient entry
+    double Jhilo[] = new double[2];
+    double epsilon = 0.0001;
+    for (int UWL = 0; UWL < 3; UWL++) {
+      switch (UWL) {
+        case 0:
+          System.out.println("checking U");
+//          Ucheck(trainData, m, dU, Jhilo, epsilon);
+          break;
+        case 1:
+          System.out.println("checking W");
+//          Wcheck(trainData, m, dW, Jhilo, epsilon);
+          break;
+        default:
+          System.out.println("checking L");
+          Lcheck(trainData, m, dL, Jhilo, epsilon);
+          break;
+      }
+    }
   }
 
-  private double hiLoL(List<Datum> trainData, int m, int c, int j) {
+  /**
+   * Perform gradient checking on L.
+   * @param trainData
+   * @param m
+   * @param dL
+   * @param Jhilo
+   * @param epsilon
+   */
+  private void Lcheck(List<Datum> trainData, int m, SimpleMatrix dL, double[] Jhilo, double epsilon) {
     SimpleMatrix L2 = L.copy();
-    L2.set(j, 0, L2.get(j, 0) + c * epsilon);
-    double J = 0;
-    SimpleMatrix z, h, p;
-    for (int i = 0; i < m; i++) {
-
-      // ignore sentence start and end tokens
-      if (trainData.get(i).word.equals(START) || trainData.get(i).word.equals(END)) {
-        continue;
+    int numColsToCheck = 200;
+    SimpleMatrix dLapprox = new SimpleMatrix(L.numRows(), numColsToCheck);
+    for (int row = 0; row < L.numRows(); row++) {
+      for (int col = 0; col < numColsToCheck; col++) {
+        for (int c = 0; c < 2; c++) {
+          L2.set(row, col, L2.get(row, col) + (2 * c - 1) * epsilon);
+          Jhilo[c] = performCheck(U, W, L2, trainData, m);
+          L2.set(row, col, L2.get(row, col) - (2 * c - 1) * epsilon);
+        }
+//        System.out.println((Jhilo[1] - Jhilo[0]) / (2 * epsilon));
+//        System.out.println(dL.get(row, col));
+        dLapprox.set(row, col, (Jhilo[1] - Jhilo[0]) / (2 * epsilon));
       }
-
-      // create input matrix x
-      List<Integer> windowIndices = createWindow(trainData, i);
-      SimpleMatrix x = makeX(windowIndices, L2);
-
-      z = W.mult(x);
-      h = fTransform(z);
-      p = gTransform(U.mult(h));
-      int k = labels.indexOf(trainData.get(i).label);
-
-      // increment cost function
-      J += costFunction(p, k);
     }
-    return -J / m;
+    System.out.println(dL.extractMatrix(0, dL.numRows(), 0, numColsToCheck).minus(dLapprox).normF());
+  }
+
+  /**
+   * Perform gradient checking on W.
+   * @param trainData
+   * @param m
+   * @param dW
+   * @param Jhilo
+   * @param epsilon
+   */
+  private void Wcheck(List<Datum> trainData, int m, SimpleMatrix dW, double[] Jhilo, double epsilon) {
+    SimpleMatrix W2 = W.copy();
+    SimpleMatrix dWapprox = new SimpleMatrix(W.numRows(), W.numCols());
+    for (int row = 0; row < W.numRows(); row++) {
+      for (int col = 0; col < W.numCols(); col++) {
+        for (int c = 0; c < 2; c++) {
+          W2.set(row, col, W2.get(row, col) + (2 * c - 1) * epsilon);
+          Jhilo[c] = performCheck(U, W2, L, trainData, m);
+          W2.set(row, col, W2.get(row, col) - (2 * c - 1) * epsilon);
+        }
+//        System.out.println((Jhilo[1] - Jhilo[0]) / (2 * epsilon));
+//        System.out.println(dW.get(row, col));
+        dWapprox.set(row, col, (Jhilo[1] - Jhilo[0]) / (2 * epsilon));
+      }
+    }
+    System.out.println(dW.minus(dWapprox).normF());
+  }
+
+  /**
+   * Perform gradient checking on U.
+   * @param trainData
+   * @param m
+   * @param dU
+   * @param jhilo
+   * @param epsilon
+   */
+  private void Ucheck(List<Datum> trainData, int m, SimpleMatrix dU, double[] jhilo, double epsilon) {
+    SimpleMatrix U2 = U.copy();
+    SimpleMatrix dUapprox = new SimpleMatrix(U.numRows(), U.numCols());
+    for (int row = 0; row < U.numRows(); row++) {
+      for (int col = 0; col < U.numCols(); col++) {
+        for (int c = 0; c < 2; c++) {
+          U2.set(row, col, U2.get(row, col) + (2 * c - 1) * epsilon);
+          jhilo[c] = performCheck(U2, W, L, trainData, m);
+          U2.set(row, col, U2.get(row, col) - (2 * c - 1) * epsilon);
+        }
+//        System.out.println((jhilo[1] - jhilo[0]) / (2 * epsilon));
+//        System.out.println(dU.get(row, col));
+        dUapprox.set(row, col, (jhilo[1] - jhilo[0]) / (2 * epsilon));
+      }
+    }
+    System.out.println(dU.minus(dUapprox).normF());
   }
 
 
@@ -317,141 +398,94 @@ public class WindowModel {
    */
   public void train(List<Datum> trainData) {
 
-    int m = trainData.size();
-    m = 10000;
-    System.out.println(m);
+    Boolean gradChecking = true;
     double J;
-    SimpleMatrix z, h, p, delta_2, delta_1, dx, dU, dW, dU2, dW2;
-    SimpleMatrix dL = new SimpleMatrix(L.numRows(), L.numCols());
-    SimpleMatrix dU_checking = new SimpleMatrix(U.numRows(), U.numCols());
-    SimpleMatrix dW_checking = new SimpleMatrix(W.numRows(), W.numCols());
-    SimpleMatrix dL_checking = new SimpleMatrix(L.numRows(), L.numCols());
+    SimpleMatrix z, h, p, delta_2, delta_1, dx, dU, dW, dUreg, dWreg;
 
-    // Perform stochastic gradient steps
-    int numGradSteps = 10;
-    for (int j = 0; j < numGradSteps; j++) {
-      J = 0.0;
+    if (gradChecking) { // Gradient checking
+      int numExamples = 100;
+      performGradCheck(trainData, numExamples);
+    } else { // Stochastic gradient descent
+      int m = trainData.size();
+      int epochs = 10;
+      for (int j = 0; j < epochs; j++) {
+        J = 0.0;
 
-      long t = System.currentTimeMillis();
+        long t = System.currentTimeMillis();
 
+        // Loop through training examples
+        for (int i = 0; i < m; i++) {
 
-      // Loop through training examples
-      for (int i = 0; i < m; i++) {
+          if (i % 10000 == 0) System.out.print(i / 10000 + " ");
 
-//      System.out.println(t);
+          // ignore sentence start and end tokens
+          if (trainData.get(i).word.equals(START) || trainData.get(i).word.equals(END)) {
+            continue;
+          }
 
-//        if (i % 1000 == 0) System.out.println("Example: " + i / 1000);
+          // create input matrix x
+          List<Integer> windowIndices = createWindow(trainData, i);
+          SimpleMatrix x = makeX(windowIndices, L);
 
+          // get z, h, p, k (apply feed-forward network function)
+          z = W.mult(x);
+          h = fTransform(z);
+          p = gTransform(U.mult(h));
+          int k = labels.indexOf(trainData.get(i).label);
 
-        // ignore sentence start and end tokens
-        if (trainData.get(i).word.equals(START) || trainData.get(i).word.equals(END)) {
-          continue;
-        }
+          // increment cost function
+          J += costFunction(p, k);
 
-        // create input matrix x
-        List<Integer> windowIndices = createWindow(trainData, i);
-        SimpleMatrix x = makeX(windowIndices, L);
+          // compute delta2 and delta1
+          delta_2 = delta2(p, k);
+          delta_1 = delta1(delta_2, h);
 
-        // apply feed-forward network function
-//      SimpleMatrix p = feedForward(x);
+          // compute dU, dW, dx
+          dU = delta_2.mult(h.transpose());
+          dW = delta_1.mult(x.transpose());
+          dx = W.extractMatrix(0, W.numRows(), 0, W.numCols() - 1).transpose().mult(delta_1);
 
-        // get z, h, p, k
-        z = W.mult(x);
-        h = fTransform(z);
-        p = gTransform(U.mult(h));
-        int k = labels.indexOf(trainData.get(i).label);
+          // compute dUreg and dWreg (contributions to U and W from regularization)
+          dUreg = U.copy();
+          for (int row = 0; row < dUreg.numRows(); row++) {
+            dUreg.set(row, dUreg.numCols() - 1, 0);
+          }
+          dUreg = dUreg.scale(lambda);
 
-        // increment cost function
-        J += costFunction(p, k);
+          dWreg = W.copy();
+          for (int row = 0; row < dWreg.numRows(); row++) {
+            dWreg.set(row, dWreg.numCols() - 1, 0);
+          }
+          dWreg = dWreg.scale(lambda);
 
-        // delta2
-        delta_2 = delta2(p, k);
-
-        // delta1
-        delta_1 = delta1(delta_2, h);
-
-        // increment dU
-        dU = delta_2.mult(h.transpose());
-//      dU_checking = dU_checking.plus(dU);
-
-        dU2 = U.copy();
-        for (int row = 0; row < dU2.numRows(); row++) {
-          dU2.set(row, dU2.numCols() - 1, 0);
-        }
-        dU2.scale(lambda);
-
-        // increment dW
-        dW = delta_1.mult(x.transpose());
-//      dW_checking = dW_checking.plus(dW);
-
-        dW2 = W.copy();
-        for (int row = 0; row < dW2.numRows(); row++) {
-          dW2.set(row, dW2.numCols() - 1, 0);
-        }
-        dW2.scale(lambda);
-
-        // increment dL (set dx first)
-        dx = W.extractMatrix(0, W.numRows(), 0, W.numCols() - 1).transpose().mult(delta_1);
-        int counter = 0;
-        for (int col : windowIndices) {
-          for (int row = 0; row < wordSize; row++) {
-//          dL_checking.set(row, col, dL_checking.get(row, col) + dx.get(counter));
-//          dL.set(row, col, dx.get(counter));
-            L.set(row, col, L.get(row, col) - (dx.get(counter) * learningRate));
-            counter++;
+          // SGD (update U, W, and L)
+          U = U.minus(dU.scale(learningRate));
+          U = U.minus(dUreg.scale(learningRate));
+          W = W.minus(dW.scale(learningRate));
+          W = W.minus(dWreg.scale(learningRate));
+          int counter = 0;
+          for (int col : windowIndices) {
+            for (int row = 0; row < wordSize; row++) {
+              L.set(row, col, L.get(row, col) - (dx.get(counter) * learningRate));
+              counter++;
+            }
           }
         }
-
-        U = U.minus(dU.scale(learningRate));
-        U = U.minus(dU2.scale(learningRate/m));
-        W = W.minus(dW.scale(learningRate));
-        W = W.minus(dW2.scale(learningRate/m));
-//      System.out.println(System.currentTimeMillis() - t);
+        J /= -m;
+        J += regularize(m);
+        System.out.println(J);
+        System.out.println("time: " + (System.currentTimeMillis() - t));
+        System.out.println(j);
       }
-      J /= -m;
-      J += regularize(m);
-      System.out.println(J);
-      System.out.println("time: " + (System.currentTimeMillis() - t));
     }
-
-//    dU_checking = dU_checking.scale(1.0 / m);
-//    dW_checking = dW_checking.scale(1.0 / m);
-//    dL_checking = dL_checking.scale(1.0 / m);
-
-
-    // TODO: have a for loop that chooses 10 random pairs of indices per gradient matrix (for gradient checking)
-
-    // gradient checking for U and b2
-//    for (int j = 0; j < 4; j++) {
-//      double Jhi = hiLoU(trainData, m, 1, j);
-//      double Jlo = hiLoU(trainData, m, -1, j);
-//      System.out.println((Jhi - Jlo) / (2 * epsilon));
-//      System.out.println(dU_checking.get(j, 0));
-//    }
-//
-//    // gradient checking for W and b1
-//    for (int j = 0; j < 4; j++) {
-//      double Jhi = hiLoW(trainData, m, 1, j);
-//      double Jlo = hiLoW(trainData, m, -1, j);
-//      System.out.println((Jhi - Jlo) / (2 * epsilon));
-//      System.out.println(dW_checking.get(j, 0));
-//    }
-//
-//    // gradient checking for L
-//    for (int j = 0; j < 4; j++) {
-//      double Jhi = hiLoL(trainData, m, 1, j);
-//      double Jlo = hiLoL(trainData, m, -1, j);
-//      System.out.println((Jhi - Jlo) / (2 * epsilon));
-//      System.out.println(dL_checking.get(j, 0));
-//    }
-
-
-//    J += regularize(m);
-
 
   }
 
-
+  /**
+   * Predict labels using the testData.
+   * @param testData
+   * @param isTest
+   */
   public void test(List<Datum> testData, Boolean isTest) {
     System.out.println("alpha: " + learningRate);
     System.out.println("lambda: " + lambda);
@@ -460,19 +494,20 @@ public class WindowModel {
     try {
       File file;
       if (!isTest) {
-        file = new File("windowTrainReg.txt");
+        file = new File("windowTrain05H.txt");
       } else {
-        file = new File("windowTestReg.txt");
+        file = new File("windowTest05H.txt");
       }
 
       BufferedWriter output = new BufferedWriter(new FileWriter(file));
 
       int m = testData.size();
-      m = 10000;
+//      if (!isTest) {
+//        m = 25000;
+//      }
       for (int i = 0; i < m; i++) {
 
         String predictLabel = "UNK"; // TODO: or "UUUNKKK"? (same for baseline?)
-//        String predictLabel = "O";
 
         if (testData.get(i).word.equals(START) || testData.get(i).word.equals(END)) {
           continue;

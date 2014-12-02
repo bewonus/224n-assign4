@@ -31,12 +31,12 @@ public class NER {
     baseline.test(testData);
 
     // initialize model
-    WindowModel model = new WindowModel(5, 100, 0.05); //TODO: initially (5, 100, 0.001)
+    WindowModel model = new WindowModel(5, 50, 0.01); //TODO: initially (5, 100, 0.001)
     model.initWeights();
 
     //TODO: Implement those two functions
     model.train(trainData);
-    model.test(trainData, false);
-    model.test(testData, true);
+//    model.test(trainData, false);
+//    model.test(testData, true);
   }
 }
