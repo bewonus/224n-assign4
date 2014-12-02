@@ -1,4 +1,5 @@
 package cs224n.deep;
+
 import java.io.*;
 import java.lang.*;
 import java.util.*;
@@ -14,9 +15,10 @@ public class BaselineModel {
   private HashMap<Datum, Integer> counts = new HashMap<Datum, Integer>();
   private List<String> labels = new ArrayList<String>(Arrays.asList("O", "LOC", "MISC", "ORG", "PER"));
 
-  public BaselineModel() { }
+  public BaselineModel() {
+  }
 
-  public void train(List<Datum> trainData){
+  public void train(List<Datum> trainData) {
     for (Datum datum : trainData) {
       if (counts.containsKey(datum)) {
         counts.put(datum, counts.get(datum) + 1);
@@ -27,7 +29,7 @@ public class BaselineModel {
   }
 
 
-  public void test(List<Datum> testData){
+  public void test(List<Datum> testData) {
 
     try {
       File file = new File("baseline.txt");
@@ -53,8 +55,8 @@ public class BaselineModel {
 
       output.close();
 
-    } catch ( IOException e ) {
-        e.printStackTrace();
+    } catch (IOException e) {
+      e.printStackTrace();
     }
 
 //      System.out.println(datum.label + " - " + predictLabel);
