@@ -374,7 +374,9 @@ public class WindowModel {
 
         // Stochastic gradient descent
         int m = trainData.size();
-        m = 1000;
+//        m = 1000;
+        System.out.println(m);
+
         // loop through epochs iterations of SGD
         for (int j = 0; j < epochs; j++) {
           J = 0;
@@ -461,7 +463,9 @@ public class WindowModel {
    */
   public void test(List<Datum> testData, String filename, boolean isTrain) {
     // print alpha and lambda
-    System.out.println("alpha: " + alpha);
+    System.out.println("C: " + windowSize);
+    System.out.println("H: " + hiddenSize);
+//    System.out.println("alpha: " + alpha);
     System.out.println("lambda: " + lambda);
 
     try {
@@ -470,7 +474,7 @@ public class WindowModel {
 
       // loop through testing examples
       int m = testData.size();
-      if (isTrain) m = 1000;
+//      if (isTrain) m = 1000;
 
       for (int i = 0; i < m; i++) {
         String predictLabel = "UNK"; // TODO: or "UUUNKKK"? (same for baseline?)

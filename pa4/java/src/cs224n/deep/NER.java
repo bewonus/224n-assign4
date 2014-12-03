@@ -33,36 +33,77 @@ public class NER {
 //    WindowModel model = new WindowModel(5, 50, 0.01, 1.0, 5); //TODO: initially (5, 100, 0.001)
 //    model.initWeights();
 
+    // adjusting lambda
+//    WindowModel model1 = new WindowModel(5, 50, 0.01, 0.01, 20);
+//    WindowModel model2 = new WindowModel(5, 50, 0.01, 0.005, 20);
+//    WindowModel model3 = new WindowModel(5, 50, 0.01, 0.001, 20);
+//    WindowModel model4 = new WindowModel(5, 50, 0.01, 0.0005, 20);
+//    WindowModel model5 = new WindowModel(5, 50, 0.01, 0.0001, 20);
+//
+//    // adjusting hidden size
+//    WindowModel model10 = new WindowModel(5, 25, 0.01, 0.001, 20);
+////    WindowModel model20 = new WindowModel(5, 50, 0.01, 0.001, 20); // same as model3
+//    WindowModel model30 = new WindowModel(5, 75, 0.01, 0.001, 20);
+//    WindowModel model40 = new WindowModel(5, 100, 0.01, 0.001, 20);
+//    WindowModel model50 = new WindowModel(5, 125, 0.01, 0.001, 20);
+//    WindowModel model60 = new WindowModel(5, 150, 0.01, 0.001, 20);
+//
+//    // adjusting window size
+//    WindowModel model100 = new WindowModel(1, 50, 0.01, 0.001, 20);
+//    WindowModel model200 = new WindowModel(3, 50, 0.01, 0.001, 20);
+////    WindowModel model300 = new WindowModel(3, 50, 0.01, 0.001, 20); // same as model3
+//    WindowModel model400 = new WindowModel(7, 50, 0.01, 0.001, 20);
+//    WindowModel model500 = new WindowModel(9, 50, 0.01, 0.001, 20);
+//
+//    model1.initWeights();
+//    model2.initWeights();
+//    model3.initWeights();
+//    model4.initWeights();
+//    model5.initWeights();
+//
+//    model10.initWeights();
+//    model30.initWeights();
+//    model40.initWeights();
+//    model50.initWeights();
+//
+//    model1.train(trainData, false, "model1.txt");
+//    model2.train(trainData, false, "model2.txt");
+//    model3.train(trainData, false, "model3.txt");
+//    model4.train(trainData, false, "model4.txt");
+//    model5.train(trainData, false, "model5.txt");
+//
+//    model1.test(trainData, "model1-Train.txt", true);
+//    model2.test(trainData, "model2-Train.txt", true);
+//    model3.test(trainData, "model3-Train.txt", true);
+//    model4.test(trainData, "model4-Train.txt", true);
+//    model5.test(trainData, "model5-Train.txt", true);
+//
+//    model1.test(testData, "model1-Test.txt", false);
+//    model2.test(testData, "model2-Test.txt", false);
+//    model3.test(testData, "model3-Test.txt", false);
+//    model4.test(testData, "model4-Test.txt", false);
+//    model5.test(testData, "model5-Test.txt", false);
 
-    WindowModel lambda1 = new WindowModel(5, 50, 0.01, 1.0, 20);
-    WindowModel lambda2 = new WindowModel(5, 50, 0.01, 0.1, 20);
-    WindowModel lambda3 = new WindowModel(5, 50, 0.01, 0.01, 20);
-    WindowModel lambda4 = new WindowModel(5, 50, 0.01, 0.001, 20);
-    WindowModel lambda5 = new WindowModel(5, 50, 0.01, 0.0001, 20);
 
-    lambda1.initWeights();
-    lambda2.initWeights();
-    lambda3.initWeights();
-    lambda4.initWeights();
-    lambda5.initWeights();
+    List<Integer> CValues = new ArrayList<Integer>(Arrays.asList(5, 3, 7));
+    List<Integer> HValues = new ArrayList<Integer>(Arrays.asList(100, 50, 125));
+    List<Double> lambdaValues = new ArrayList<Double>(Arrays.asList(0.01, 0.001, 0.0001));
 
-    lambda1.train(trainData, false, "lambda1.txt");
-    lambda2.train(trainData, false, "lambda2.txt");
-    lambda3.train(trainData, false, "lambda3.txt");
-    lambda4.train(trainData, false, "lambda4.txt");
-    lambda5.train(trainData, false, "lambda5.txt");
-
-    lambda1.test(trainData, "lambda1-Train.txt", true);
-    lambda2.test(trainData, "lambda2-Train.txt", true);
-    lambda3.test(trainData, "lambda3-Train.txt", true);
-    lambda4.test(trainData, "lambda4-Train.txt", true);
-    lambda5.test(trainData, "lambda5-Train.txt", true);
-
-    lambda1.test(testData, "lambda1-Test.txt", false);
-    lambda2.test(testData, "lambda2-Test.txt", false);
-    lambda3.test(testData, "lambda3-Test.txt", false);
-    lambda4.test(testData, "lambda4-Test.txt", false);
-    lambda5.test(testData, "lambda5-Test.txt", false);
+    int modelNum = 1;
+    for (Integer C : CValues) {
+      for (Integer H : HValues) {
+        if (C == 7 && H == 125) continue;
+        for (Double lambda : lambdaValues) {
+          System.out.println("----- NEXT UP: MODEL " + modelNum + " -----");
+          WindowModel model = new WindowModel(C, H, 0.01, lambda, 20);
+          model.initWeights();
+          model.train(trainData, false, "model" + modelNum + "-Diagnostics.txt");
+          model.test(trainData, "model" + modelNum + "-Train.txt", true);
+          model.test(testData, "model" + modelNum + "-Test.txt", false);
+          modelNum++;
+        }
+      }
+    }
 
 
     // train and test window model
