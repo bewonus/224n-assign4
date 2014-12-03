@@ -15,9 +15,11 @@ public class BaselineModel {
   private HashMap<Datum, Integer> counts = new HashMap<Datum, Integer>();
   private List<String> labels = new ArrayList<String>(Arrays.asList("O", "LOC", "MISC", "ORG", "PER"));
 
-  public BaselineModel() {
-  }
+  public BaselineModel() { }
 
+  /**
+   * Trains the baseline model. For each word, stores the frequency of each of label for that word.
+   */
   public void train(List<Datum> trainData) {
     for (Datum datum : trainData) {
       if (counts.containsKey(datum)) {
@@ -28,9 +30,10 @@ public class BaselineModel {
     }
   }
 
-
+  /**
+   * Predict named-entity labels on the testData based on the most frequent tag for each word.
+   */
   public void test(List<Datum> testData) {
-
     try {
       File file = new File("baseline.txt");
       BufferedWriter output = new BufferedWriter(new FileWriter(file));
@@ -38,8 +41,6 @@ public class BaselineModel {
       for (Datum datum : testData) {
         int max = 0;
         String predictLabel = "UNK";
-//        String predictLabel = "O";
-
         for (String label : labels) {
           Datum temp = new Datum(datum.word, label);
           if (counts.containsKey(temp)) {
@@ -52,14 +53,10 @@ public class BaselineModel {
         }
         output.write(datum.word + "\t" + datum.label + "\t" + predictLabel + "\n");
       }
-
       output.close();
-
     } catch (IOException e) {
       e.printStackTrace();
     }
-
-//      System.out.println(datum.label + " - " + predictLabel);
   }
 
 }

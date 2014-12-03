@@ -29,6 +29,9 @@ public class FeatureFactory {
     return testData;
   }
 
+  /**
+   * Reads a file and returns a list of datum objects (word + label).
+   */
   private static List<Datum> read(String filename)
     throws FileNotFoundException, IOException {
 
@@ -66,8 +69,11 @@ public class FeatureFactory {
 
   // Look up table matrix with all word vectors as defined in lecture with dimensionality n x |V|
   // Note: SimpleMatrix is 0 indexed
-  static SimpleMatrix allVecs; //access it directly in WindowModel (same as L)
+  static SimpleMatrix allVecs; // access it directly in WindowModel (same as L)
 
+  /**
+   * Creates the allVecs simple matrix (L).
+   */
   public static SimpleMatrix readWordVectors(String vecFilename) throws IOException {
     // already initialized, so just return
     if (allVecs != null) return allVecs;
@@ -103,6 +109,9 @@ public class FeatureFactory {
   public static HashMap<String, Integer> wordToNum = new HashMap<String, Integer>();
   public static HashMap<Integer, String> numToWord = new HashMap<Integer, String>();
 
+  /**
+   * Creates to HashMaps associating words to their indices in the vocabulary.
+   */
   public static HashMap<String, Integer> initializeVocab(String vocabFilename) throws IOException {
     // read vocabFilename
     BufferedReader in = new BufferedReader(new FileReader(vocabFilename));

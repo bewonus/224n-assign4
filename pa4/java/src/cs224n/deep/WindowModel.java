@@ -36,14 +36,18 @@ public class WindowModel {
   // regularization parameter
   private double lambda;
 
+  // epochs (number of iterations of SGD)
+  private int epochs;
+
   /**
    * Construct a window model.
    */
-  public WindowModel(int _windowSize, int _hiddenSize, double _alpha, double _lambda) {
+  public WindowModel(int _windowSize, int _hiddenSize, double _alpha, double _lambda, int _epochs) {
     windowSize = _windowSize;
     hiddenSize = _hiddenSize;
     alpha = _alpha;
     lambda = _lambda;
+    epochs = _epochs;
   }
 
   /**
@@ -351,7 +355,7 @@ public class WindowModel {
   /**
    * Train a neural network using stochastic gradient descent.
    */
-  public void train(List<Datum> trainData, Boolean gradChecking) {
+  public void train(List<Datum> trainData, Boolean gradChecking, String filename) {
     double J;
     SimpleMatrix z, h, p, delta_2, delta_1, dx, dU, dW, dUreg, dWreg;
 
@@ -360,81 +364,93 @@ public class WindowModel {
       // number of examples to use for gradient checking
       int numExamples = 50;
       performGradCheck(trainData, numExamples);
-    }
-    // Stochastic gradient descent
-    else {
-      int m = trainData.size();
-      int epochs = 10;
-      // loop through epochs iterations of SGD
-      for (int j = 0; j < epochs; j++) {
-        J = 0;
+    } else {
+      // SGD and visualization
+      try {
+        File file = new File(filename);
+        BufferedWriter output = new BufferedWriter(new FileWriter(file));
 
-        long t = System.currentTimeMillis();
+        output.write("iteration" + "\t" + "cost" + "\t" + "C" + "\t" + "H" + "\t" + "alpha" + "\t" + "lambda" + "\t" + "time" + "\n");
 
-        // loop through training examples
-        for (int i = 0; i < m; i++) {
-          if (i % 10000 == 0) System.out.print(i / 10000 + " ");
+        // Stochastic gradient descent
+        int m = trainData.size();
+        m = 1000;
+        // loop through epochs iterations of SGD
+        for (int j = 0; j < epochs; j++) {
+          J = 0;
 
-          // ignore sentence start and end tokens
-          if (trainData.get(i).word.equals(START) || trainData.get(i).word.equals(END)) {
-            continue;
-          }
-          // create input matrix x
-          List<Integer> windowIndices = createWindow(trainData, i);
-          SimpleMatrix x = makeX(windowIndices, L);
+          long t = System.currentTimeMillis();
 
-          // get z, h, p, k (apply feed-forward network function)
-          z = W.mult(x);
-          h = fTransform(z);
-          p = gTransform(U.mult(h));
-          int k = labels.indexOf(trainData.get(i).label);
+          // loop through training examples
+          for (int i = 0; i < m; i++) {
+            if (i % 25000 == 0) System.out.print(i / 25000 + " ");
 
-          // increment cost function
-          J += costFunction(p, k);
+            // ignore sentence start and end tokens
+            if (trainData.get(i).word.equals(START) || trainData.get(i).word.equals(END)) {
+              continue;
+            }
+            // create input matrix x
+            List<Integer> windowIndices = createWindow(trainData, i);
+            SimpleMatrix x = makeX(windowIndices, L);
 
-          // compute delta2 and delta1
-          delta_2 = delta2(p, k);
-          delta_1 = delta1(delta_2, h);
+            // get z, h, p, k (apply feed-forward network function)
+            z = W.mult(x);
+            h = fTransform(z);
+            p = gTransform(U.mult(h));
+            int k = labels.indexOf(trainData.get(i).label);
 
-          // compute dU, dW, dx
-          dU = delta_2.mult(h.transpose());
-          dW = delta_1.mult(x.transpose());
-          dx = W.extractMatrix(0, W.numRows(), 0, W.numCols() - 1).transpose().mult(delta_1);
+            // increment cost function
+            J += costFunction(p, k);
 
-          // compute dUreg (contribution to U from regularization)
-          dUreg = U.copy();
-          for (int row = 0; row < dUreg.numRows(); row++) {
-            dUreg.set(row, dUreg.numCols() - 1, 0);
-          }
-          dUreg = dUreg.scale(lambda);
+            // compute delta2 and delta1
+            delta_2 = delta2(p, k);
+            delta_1 = delta1(delta_2, h);
 
-          // compute dWreg (contribution to W from regularization)
-          dWreg = W.copy();
-          for (int row = 0; row < dWreg.numRows(); row++) {
-            dWreg.set(row, dWreg.numCols() - 1, 0);
-          }
-          dWreg = dWreg.scale(lambda);
+            // compute dU, dW, dx
+            dU = delta_2.mult(h.transpose());
+            dW = delta_1.mult(x.transpose());
+            dx = W.extractMatrix(0, W.numRows(), 0, W.numCols() - 1).transpose().mult(delta_1);
 
-          // SGD (update U, W, and L)
-          U = U.minus(dU.scale(alpha));
-          U = U.minus(dUreg.scale(alpha));
-          W = W.minus(dW.scale(alpha));
-          W = W.minus(dWreg.scale(alpha));
-          int counter = 0;
-          for (int col : windowIndices) {
-            for (int row = 0; row < wordSize; row++) {
-              L.set(row, col, L.get(row, col) - (dx.get(counter) * alpha));
-              counter++;
+            // compute dUreg (contribution to U from regularization)
+            dUreg = U.copy();
+            for (int row = 0; row < dUreg.numRows(); row++) {
+              dUreg.set(row, dUreg.numCols() - 1, 0);
+            }
+            dUreg = dUreg.scale(lambda);
+
+            // compute dWreg (contribution to W from regularization)
+            dWreg = W.copy();
+            for (int row = 0; row < dWreg.numRows(); row++) {
+              dWreg.set(row, dWreg.numCols() - 1, 0);
+            }
+            dWreg = dWreg.scale(lambda);
+
+            // SGD (update U, W, and L)
+            U = U.minus(dU.scale(alpha));
+            U = U.minus(dUreg.scale(alpha));
+            W = W.minus(dW.scale(alpha));
+            W = W.minus(dWreg.scale(alpha));
+            int counter = 0;
+            for (int col : windowIndices) {
+              for (int row = 0; row < wordSize; row++) {
+                L.set(row, col, L.get(row, col) - (dx.get(counter) * alpha));
+                counter++;
+              }
             }
           }
-        }
 
-        // adjust and print cost function (with regularization)
-        J /= -m;
-        J += regularize(m);
-        System.out.println(J);
-        System.out.println("time: " + (System.currentTimeMillis() - t));
-        System.out.println(j);
+          // adjust and print cost function (with regularization)
+          J /= -m;
+          J += regularize(m);
+          System.out.println(j+1);
+          System.out.println(J);
+
+          // write diagnostic information
+          output.write(j + "\t" + J + "\t" + windowSize + "\t" + hiddenSize + "\t" + alpha + "\t" + lambda + "\t" + (System.currentTimeMillis() - t) + "\n");
+        }
+        output.close();
+      } catch (IOException e) {
+        e.printStackTrace();
       }
     }
 
@@ -443,22 +459,19 @@ public class WindowModel {
   /**
    * Predict named-entity labels (flag tells whether testData is actually the training data, if we want train error).
    */
-  public void test(List<Datum> testData, Boolean isTrain) {
+  public void test(List<Datum> testData, String filename, boolean isTrain) {
     // print alpha and lambda
     System.out.println("alpha: " + alpha);
     System.out.println("lambda: " + lambda);
 
     try {
-      File file;
-      if (isTrain) {
-        file = new File("windowTrain05H.txt");
-      } else {
-        file = new File("windowTest05H.txt");
-      }
+      File file = new File(filename);
       BufferedWriter output = new BufferedWriter(new FileWriter(file));
 
       // loop through testing examples
       int m = testData.size();
+      if (isTrain) m = 1000;
+
       for (int i = 0; i < m; i++) {
         String predictLabel = "UNK"; // TODO: or "UUUNKKK"? (same for baseline?)
 
