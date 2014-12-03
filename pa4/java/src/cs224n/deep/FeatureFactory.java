@@ -11,11 +11,7 @@ import org.ejml.simple.*;
 
 public class FeatureFactory {
 
-
-  private FeatureFactory() {
-
-  }
-
+  private FeatureFactory() { }
 
   static List<Datum> trainData;
 
@@ -35,7 +31,7 @@ public class FeatureFactory {
 
   private static List<Datum> read(String filename)
     throws FileNotFoundException, IOException {
-    // TODO: you'd want to handle sentence boundaries
+
     List<Datum> data = new ArrayList<Datum>();
     BufferedReader in = new BufferedReader(new FileReader(filename));
     Boolean isFirstPass = true;
@@ -122,6 +118,5 @@ public class FeatureFactory {
     }
     return wordToNum;
   }
-
 
 }
