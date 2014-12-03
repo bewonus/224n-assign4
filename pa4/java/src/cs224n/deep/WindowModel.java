@@ -370,11 +370,11 @@ public class WindowModel {
         File file = new File(filename);
         BufferedWriter output = new BufferedWriter(new FileWriter(file));
 
-        output.write("iteration" + "\t" + "cost" + "\t" + "C" + "\t" + "H" + "\t" + "alpha" + "\t" + "lambda" + "\t" + "time" + "\n");
+        output.write("iteration" + "\t" + "cost" + "\t" + "costReg" + "\t" + "C" + "\t" + "H" + "\t" + "alpha" + "\t" + "lambda" + "\t" + "time" + "\n");
 
         // Stochastic gradient descent
         int m = trainData.size();
-//        m = 1000;
+//        m = 50000; // TODO: comment me out!
         System.out.println(m);
 
         // loop through epochs iterations of SGD
@@ -443,12 +443,14 @@ public class WindowModel {
 
           // adjust and print cost function (with regularization)
           J /= -m;
-          J += regularize(m);
+          double Jreg = J + regularize(m);
+//          J += regularize(m);
           System.out.println(j+1);
           System.out.println(J);
+          System.out.println(Jreg);
 
           // write diagnostic information
-          output.write(j + "\t" + J + "\t" + windowSize + "\t" + hiddenSize + "\t" + alpha + "\t" + lambda + "\t" + (System.currentTimeMillis() - t) + "\n");
+          output.write(j + "\t" + J + "\t" + Jreg + "\t" + windowSize + "\t" + hiddenSize + "\t" + alpha + "\t" + lambda + "\t" + (System.currentTimeMillis() - t) + "\n");
         }
         output.close();
       } catch (IOException e) {
@@ -465,7 +467,7 @@ public class WindowModel {
     // print alpha and lambda
     System.out.println("C: " + windowSize);
     System.out.println("H: " + hiddenSize);
-//    System.out.println("alpha: " + alpha);
+    System.out.println("alpha: " + alpha);
     System.out.println("lambda: " + lambda);
 
     try {
@@ -474,7 +476,7 @@ public class WindowModel {
 
       // loop through testing examples
       int m = testData.size();
-//      if (isTrain) m = 1000;
+//      if (isTrain) m = 50000; // TODO: comment me out!
 
       for (int i = 0; i < m; i++) {
         String predictLabel = "UNK"; // TODO: or "UUUNKKK"? (same for baseline?)

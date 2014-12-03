@@ -86,25 +86,36 @@ public class NER {
 
 
     List<Integer> CValues = new ArrayList<Integer>(Arrays.asList(5, 3, 7));
-    List<Integer> HValues = new ArrayList<Integer>(Arrays.asList(100, 50, 125));
-    List<Double> lambdaValues = new ArrayList<Double>(Arrays.asList(0.01, 0.001, 0.0001));
+    List<Integer> HValues = new ArrayList<Integer>(Arrays.asList(100, 50, 125)); // scores appear to be slightly better for 50 than 100 or 150 (almost no change)
+    List<Double> lambdaValues = new ArrayList<Double>(Arrays.asList(0.01, 0.001, 0.0001)); // scores appear to be better for 0.0001
+
+    List<Double> alphaValues2 = new ArrayList<Double>(Arrays.asList(0.05, 0.01, 0.005)); // alpha = 0.01 is what we were using
+    List<Integer> CValues2 = new ArrayList<Integer>(Arrays.asList(5));
+    List<Integer> HValues2 = new ArrayList<Integer>(Arrays.asList(50));
+    List<Double> lambdaValues2 = new ArrayList<Double>(Arrays.asList(0.0005, 0.0001)); // scores appear better as alpha and lambda decrease
+
+    List<Double> alphaValues3 = new ArrayList<Double>(Arrays.asList(0.005)); // alpha = 0.01 is what we were using
+    List<Integer> CValues3 = new ArrayList<Integer>(Arrays.asList(5));
+    List<Integer> HValues3 = new ArrayList<Integer>(Arrays.asList(50));
+    List<Double> lambdaValues3 = new ArrayList<Double>(Arrays.asList(0.0001));
 
     int modelNum = 1;
-    for (Integer C : CValues) {
-      for (Integer H : HValues) {
-        if (C == 7 && H == 125) continue;
-        for (Double lambda : lambdaValues) {
-          System.out.println("----- NEXT UP: MODEL " + modelNum + " -----");
-          WindowModel model = new WindowModel(C, H, 0.01, lambda, 20);
-          model.initWeights();
-          model.train(trainData, false, "model" + modelNum + "-Diagnostics.txt");
-          model.test(trainData, "model" + modelNum + "-Train.txt", true);
-          model.test(testData, "model" + modelNum + "-Test.txt", false);
-          modelNum++;
+    for (Double alpha : alphaValues3) {
+      for (Integer C : CValues3) {
+        for (Integer H : HValues3) {
+//        if (C == 7 && H == 125) continue;
+          for (Double lambda : lambdaValues3) {
+            System.out.println("----- NEXT UP: MODEL " + modelNum + " -----");
+            WindowModel model = new WindowModel(C, H, alpha, lambda, 20); // iterations were at 20 (not 10)
+            model.initWeights();
+            model.train(trainData, false, "superDuper-Model" + modelNum + "-Diagnostics.txt");
+            model.test(trainData, "superDuper-Model" + modelNum + "-Train.txt", true);
+            model.test(testData, "superDuper-Model" + modelNum + "-Test.txt", false);
+            modelNum++;
+          }
         }
       }
     }
-
 
     // train and test window model
 //    model.train(trainData, false); // set to true for gradient checking
