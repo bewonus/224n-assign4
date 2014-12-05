@@ -39,18 +39,28 @@ public class BaselineModel {
       BufferedWriter output = new BufferedWriter(new FileWriter(file));
 
       for (Datum datum : testData) {
+        boolean labelSeen = false;
+//        boolean discard = false;
         int max = 0;
-        String predictLabel = "UNK";
+        String predictLabel = "UNK"; // O?
         for (String label : labels) {
           Datum temp = new Datum(datum.word, label);
           if (counts.containsKey(temp)) {
-            int count = counts.get(temp);
-            if (count > max) {
-              max = count;
-              predictLabel = label;
+            if (labelSeen) {
+              predictLabel = "UNK"; // UNK?
+//              discard = true;
+              break;
+            }else{
+              labelSeen = true;
+              int count = counts.get(temp);
+              if (count > max) {
+                max = count;
+                predictLabel = label;
+              }
             }
           }
         }
+//        if (discard) continue;
         output.write(datum.word + "\t" + datum.label + "\t" + predictLabel + "\n");
       }
       output.close();

@@ -27,7 +27,8 @@ public class NER {
     // train and test baseline model
     BaselineModel baseline = new BaselineModel();
     baseline.train(trainData);
-    baseline.test(testData);
+    baseline.test(trainData);
+//    baseline.test(testData);
 
     // initialize window model (with C, H, alpha, lambda, epochs)
 //    WindowModel model = new WindowModel(5, 50, 0.01, 1.0, 5); //TODO: initially (5, 100, 0.001)
@@ -85,37 +86,45 @@ public class NER {
 //    model5.test(testData, "model5-Test.txt", false);
 
 
-    List<Integer> CValues = new ArrayList<Integer>(Arrays.asList(5, 3, 7));
-    List<Integer> HValues = new ArrayList<Integer>(Arrays.asList(100, 50, 125)); // scores appear to be slightly better for 50 than 100 or 150 (almost no change)
-    List<Double> lambdaValues = new ArrayList<Double>(Arrays.asList(0.01, 0.001, 0.0001)); // scores appear to be better for 0.0001
+//    List<Integer> CValues = new ArrayList<Integer>(Arrays.asList(5));
+//    List<Integer> HValues = new ArrayList<Integer>(Arrays.asList(100, 50, 125)); // scores appear to be slightly better for 50 than 100 or 150 (almost no change)
+//    List<Double> lambdaValues = new ArrayList<Double>(Arrays.asList(0.01, 0.001, 0.0001)); // scores appear to be better for 0.0001
+//
+//    List<Double> alphaValues2 = new ArrayList<Double>(Arrays.asList(0.05, 0.01, 0.005)); // alpha = 0.01 is what we were using
+//    List<Integer> CValues2 = new ArrayList<Integer>(Arrays.asList(5));
+//    List<Integer> HValues2 = new ArrayList<Integer>(Arrays.asList(50));
+//    List<Double> lambdaValues2 = new ArrayList<Double>(Arrays.asList(0.0005, 0.0001)); // scores appear better as alpha and lambda decrease
 
-    List<Double> alphaValues2 = new ArrayList<Double>(Arrays.asList(0.05, 0.01, 0.005)); // alpha = 0.01 is what we were using
-    List<Integer> CValues2 = new ArrayList<Integer>(Arrays.asList(5));
-    List<Integer> HValues2 = new ArrayList<Integer>(Arrays.asList(50));
-    List<Double> lambdaValues2 = new ArrayList<Double>(Arrays.asList(0.0005, 0.0001)); // scores appear better as alpha and lambda decrease
+    // ---------
 
-    List<Double> alphaValues3 = new ArrayList<Double>(Arrays.asList(0.005)); // alpha = 0.01 is what we were using
-    List<Integer> CValues3 = new ArrayList<Integer>(Arrays.asList(5));
-    List<Integer> HValues3 = new ArrayList<Integer>(Arrays.asList(50));
-    List<Double> lambdaValues3 = new ArrayList<Double>(Arrays.asList(0.0001));
 
-    int modelNum = 1;
-    for (Double alpha : alphaValues3) {
-      for (Integer C : CValues3) {
-        for (Integer H : HValues3) {
-//        if (C == 7 && H == 125) continue;
-          for (Double lambda : lambdaValues3) {
-            System.out.println("----- NEXT UP: MODEL " + modelNum + " -----");
-            WindowModel model = new WindowModel(C, H, alpha, lambda, 20); // iterations were at 20 (not 10)
-            model.initWeights();
-            model.train(trainData, false, "superDuper-Model" + modelNum + "-Diagnostics.txt");
-            model.test(trainData, "superDuper-Model" + modelNum + "-Train.txt", true);
-            model.test(testData, "superDuper-Model" + modelNum + "-Test.txt", false);
-            modelNum++;
-          }
-        }
-      }
-    }
+//    List<Double> alphaValues3 = new ArrayList<Double>(Arrays.asList(0.005)); // alpha = 0.01 is what we were using
+//    List<Integer> CValues3 = new ArrayList<Integer>(Arrays.asList(5));
+//    List<Integer> HValues3 = new ArrayList<Integer>(Arrays.asList(50));
+//
+//
+//    List<Double> lambdaValues3 = new ArrayList<Double>(Arrays.asList(0.0001, 0.00005, 0.00001, 0.000005));
+//    List<Double> lambdaValues4 = new ArrayList<Double>(Arrays.asList(5.0E-5));
+//
+//    int modelNum = 1;
+//    for (Double alpha : alphaValues3) {
+//      for (Integer C : CValues3) {
+//        for (Integer H : HValues3) {
+////        if (C == 7 && H == 125) continue;
+//          for (Double lambda : lambdaValues3) {
+//            System.out.println("----- NEXT UP: MODEL " + modelNum + " -----");
+//            WindowModel model = new WindowModel(C, H, alpha, lambda, 20); // iterations were at 20 (not 10)
+//            model.initWeights(false); // don't use random L
+//            model.train(trainData, false, "OLD_U_tiny_lambda" + modelNum + "-Diagnostics.txt");
+//            model.test(trainData, "OLD_U_tiny_lambda" + modelNum + "-Train.txt", true);
+//            model.test(testData, "OLD_U_tiny_lambda" + modelNum + "-Test.txt", false);
+//            modelNum++;
+//          }
+//        }
+//      }
+//    }
+
+    // ---------
 
     // train and test window model
 //    model.train(trainData, false); // set to true for gradient checking

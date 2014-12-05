@@ -17,7 +17,7 @@ public class WindowModel {
   // list of possible entity labels
   private List<String> labels = new ArrayList<String>(Arrays.asList("O", "LOC", "MISC", "ORG", "PER"));
 
-  // number of labels
+  // number of labels (K)
   private int numLabels = labels.size();
 
   // special tokens
@@ -53,16 +53,29 @@ public class WindowModel {
   /**
    * Initializes the weight matrices L, W, and U.
    */
-  public void initWeights() {
+  public void initWeights(Boolean useRandomL) {
     wordSize = FeatureFactory.allVecs.numRows(); // == 50
 
-    // word-vector matrix (i.e. the x's)
-    L = new SimpleMatrix(FeatureFactory.allVecs);
+    if (!useRandomL) {
+      // word-vector matrix (i.e. the x's)
+      L = new SimpleMatrix(FeatureFactory.allVecs);
+    } else {
+      // use randomly initialized L
+      double max = -1;
+      double min = 1;
+      for (int row = 0; row < L.numRows(); row++) {
+        for (int col = 0; col < L.numCols(); col++) {
+          double curr = L.get(row, col);
+          if (curr > max) max = curr;
+          if (curr < min) min = curr;
+        }
+      }
+      L = SimpleMatrix.random(L.numRows(), L.numCols(), min, max, new java.util.Random());
+    }
 
     // set params for random initialization
     double eW = Math.sqrt(6.0) / Math.sqrt(hiddenSize + windowSize * wordSize);
-    double eU = Math.sqrt(6.0) / Math.sqrt(numLabels + hiddenSize);
-    // TODO: are eW and eU correct...?
+    double eU = Math.sqrt(6.0) / Math.sqrt(numLabels + hiddenSize) * 4.0; // TODO: added multiplicative factor of 4.0
 
     // randomly initialize W and U (with biases inside the last column (i.e. plus 1))
     W = SimpleMatrix.random(hiddenSize, windowSize * wordSize + 1, -eW, eW, new java.util.Random());
@@ -97,18 +110,18 @@ public class WindowModel {
   /**
    * Create a window of word indices centered at the given index.
    */
-  private List<Integer> createWindow(List<Datum> trainData, int index) {
+  private List<Integer> createWindow(List<Datum> data, int index) {
     List<Integer> indices = new ArrayList<Integer>(windowSize);
     Boolean startSeen = false;
     Boolean endSeen = false;
 
     // start of the window
     for (int i = index; i >= index - (windowSize - 1) / 2; i--) {
-      if (startSeen || trainData.get(i).word.equals(START)) { // handle start tokens
+      if (startSeen || data.get(i).word.equals(START)) { // handle start tokens
         startSeen = true;
         indices.add(0, FeatureFactory.wordToNum.get(START));
       } else {
-        Integer nextIndex = FeatureFactory.wordToNum.get(trainData.get(i).word.toLowerCase());
+        Integer nextIndex = FeatureFactory.wordToNum.get(data.get(i).word.toLowerCase());
         if (nextIndex == null) { // handle words not contained in the vocabulary
           indices.add(0, FeatureFactory.wordToNum.get(UNK));
         } else {
@@ -119,11 +132,11 @@ public class WindowModel {
 
     // end of the window
     for (int i = index + 1; i <= index + (windowSize - 1) / 2; i++) {
-      if (endSeen || trainData.get(i).word.equals(END)) { // handle end tokens
+      if (endSeen || data.get(i).word.equals(END)) { // handle end tokens
         endSeen = true;
         indices.add(FeatureFactory.wordToNum.get(END));
       } else {
-        Integer nextIndex = FeatureFactory.wordToNum.get(trainData.get(i).word.toLowerCase());
+        Integer nextIndex = FeatureFactory.wordToNum.get(data.get(i).word.toLowerCase());
         if (nextIndex == null) { // handle words not contained in the vocabulary
           indices.add(FeatureFactory.wordToNum.get(UNK));
         } else {
@@ -374,7 +387,7 @@ public class WindowModel {
 
         // Stochastic gradient descent
         int m = trainData.size();
-//        m = 50000; // TODO: comment me out!
+        m = 50000; // TODO: comment me out!
         System.out.println(m);
 
         // loop through epochs iterations of SGD
@@ -418,14 +431,14 @@ public class WindowModel {
             for (int row = 0; row < dUreg.numRows(); row++) {
               dUreg.set(row, dUreg.numCols() - 1, 0);
             }
-            dUreg = dUreg.scale(lambda);
+            dUreg = dUreg.scale(lambda / m);
 
             // compute dWreg (contribution to W from regularization)
             dWreg = W.copy();
             for (int row = 0; row < dWreg.numRows(); row++) {
               dWreg.set(row, dWreg.numCols() - 1, 0);
             }
-            dWreg = dWreg.scale(lambda);
+            dWreg = dWreg.scale(lambda / m);
 
             // SGD (update U, W, and L)
             U = U.minus(dU.scale(alpha));
@@ -476,7 +489,7 @@ public class WindowModel {
 
       // loop through testing examples
       int m = testData.size();
-//      if (isTrain) m = 50000; // TODO: comment me out!
+      if (isTrain) m = 50000; // TODO: comment me out!
 
       for (int i = 0; i < m; i++) {
         String predictLabel = "UNK"; // TODO: or "UUUNKKK"? (same for baseline?)
